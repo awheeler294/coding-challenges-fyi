@@ -9,6 +9,7 @@ use clap::Parser;
 use url::Url;
 
 const PROTOCOL_VERSION: &str = "1.1";
+const CRLF: &str = "\r\n";
 
 #[derive(Debug)]
 enum Method {
@@ -43,11 +44,11 @@ impl<'a> HttpRequest<'a> {
 
 impl<'a> Display for HttpRequest<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} {}/{PROTOCOL_VERSION}\r\n", self.method, self.url.path(), self.url.scheme().to_uppercase())?;
-        write!(f, "Host: {}\r\n", self.host)?;
-        write!(f, "Accept: */*\r\n")?;
-        write!(f, "Connection: close\r\n")?;
-        write!(f, "\r\n")?;
+        write!(f, "{} {} {}/{PROTOCOL_VERSION}{CRLF}", self.method, self.url.path(), self.url.scheme().to_uppercase())?;
+        write!(f, "Host: {}{CRLF}", self.host)?;
+        write!(f, "Accept: */*{CRLF}")?;
+        write!(f, "Connection: close{CRLF}")?;
+        write!(f, "{CRLF}")?;
 
         Ok(())
     }
@@ -61,9 +62,9 @@ struct Args {
     /// URL to make request to
     url: String,
 
-    // /// Number of times to greet
-    // #[arg(short, long, default_value_t = 1)]
-    // count: u8,
+    /// Verbose output
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
 }
 
 fn main() -> Result<()> {
@@ -74,23 +75,71 @@ fn main() -> Result<()> {
     // dbg!(&url);
     
     let request = HttpRequest::new(Method::GET, &url)?;
-    let mut response = String::new();
+    let mut response_string = String::new();
 
-    println!("connecting to {}", request.host);
+    if args.verbose {
+        println!("connecting to {}", request.host);
+    }
 
     let mut stream = TcpStream::connect(format!("{}:80", request.host))?;
     // let mut stream = TcpStream::connect("127.0.0.1:1234")?;
 
-    println!("Sending request:");
-    println!("{request}");
-
-    stream.write_all(&format!("{request}").as_bytes())?;
+    if args.verbose {
+        println!("Sending request:");
+    }
+    let request_string = format!("{request}");
+    stream.write_all(&request_string.as_bytes())?;
+    if args.verbose {
+        print_http_request(&request_string);
+    }
     
-    println!();
-
-    stream.read_to_string(&mut response)?;
-
-    println!("{response}");
+    stream.read_to_string(&mut response_string)?;
+    let parse_result = parse_response(&response_string);
+    match parse_result {
+        Ok((response_header, response_body)) => {
+            if args.verbose {
+                print_http_response(&response_header);
+            }
+            println!("{response_body}");
+        } Err(e) => {
+            println!("Error parsing response \n{response_string}\n{e}");
+        }
+    }
 
     Ok(())
+}
+
+fn print_http_request(request_string: &str) {
+    for line in request_string.lines() {
+        println!("> {line}");
+    }
+}
+
+fn print_http_response(response_string: &str) {
+    for line in response_string.lines() {
+        println!("< {line}");
+    }
+}
+
+fn parse_response(response_string: &str) -> Result<(&str, &str)> {
+    let mut body_start_idx = None;
+    
+    let blank_line = [0x0d, 0x0a, 0x0d, 0x0a]; // 2 CRLF as hex
+    let mut i = 0;
+    let mut j = 3;
+    let rs = response_string.as_bytes();
+    while j < rs.len() {
+        if rs[i..=j] == blank_line {
+            body_start_idx = Some(j+1);
+            break;
+        }
+        i += 1;
+        j += 1;
+    }
+
+    if let Some(body_start_idx) = body_start_idx {
+        Ok((&response_string[..body_start_idx], &response_string[body_start_idx..]))
+    } else {
+        Err(anyhow::anyhow!("Error parsing response, could not find blank line to indicate where the message body begins."))
+    }
 }
