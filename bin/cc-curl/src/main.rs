@@ -1,6 +1,4 @@
 use std::{
-    fmt, 
-    fmt::Display,
     net::TcpStream, io::{Read, Write},
 };
 
@@ -8,52 +6,8 @@ use anyhow::{Result, Context};
 use clap::Parser;
 use url::Url;
 
-const PROTOCOL_VERSION: &str = "1.1";
-const CRLF: &str = "\r\n";
-
-#[derive(Debug)]
-enum Method {
-    GET,
-}
-
-impl Display for Method {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[derive(Debug)]
-struct HttpRequest<'a> {
-    method: Method,
-    url: &'a Url,
-    host: &'a str
-}
-
-impl<'a> HttpRequest<'a> {
-    fn new(method: Method, url: &'a Url) -> Result<Self> {
-        let host = url.host_str().ok_or(anyhow::anyhow!("url must include host"))?;
-        
-        Ok(Self {
-            method,
-            url,
-            host,
-        })
-    }
-    
-}
-
-impl<'a> Display for HttpRequest<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} {}/{PROTOCOL_VERSION}{CRLF}", self.method, self.url.path(), self.url.scheme().to_uppercase())?;
-        write!(f, "Host: {}{CRLF}", self.host)?;
-        write!(f, "Accept: */*{CRLF}")?;
-        write!(f, "Connection: close{CRLF}")?;
-        write!(f, "{CRLF}")?;
-
-        Ok(())
-    }
-
-}
+mod request;
+use request::{HttpRequest, Method};
 
 /// Program that makes http requests
 #[derive(Parser, Debug)]
@@ -65,6 +19,29 @@ struct Args {
     /// Verbose output
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+
+    /// Request method to use.
+    /// curl passes on the verbatim string you give it its the request without any filter or other safe guards. That includes white space and control characters.
+    #[arg(short = 'X', long)]
+    request: Option<String>,
+
+    /// Extra header to include in information sent. When used within an HTTP request, it is added to the regular request headers.
+    ///
+    /// You  may  specify  any  number  of extra headers. Note that if you should add a custom header that has the same name as one of the internal ones curl
+    /// would use, your externally set header is used instead of the internal one. This allows you to make even trickier stuff than curl would  normally  do.
+    /// You  should  not  replace internally set headers without knowing perfectly well what you are doing. Remove an internal header by giving a replacement
+    /// without content on the right side of the colon, as in: -H "Host:". If you send the custom header with no-value then its  header  must  be  terminated
+    /// with a semicolon, such as \-H "X-Custom-Header;" to send "X-Custom-Header:".
+    ///
+    /// curl  makes  sure  that  each header you add/replace is sent with the proper end-of-line marker, you should thus not add that as a part of the header
+    /// content: do not add newlines or carriage returns, they only mess things up for you. curl passes on the verbatim string you give it without any filter
+    /// or other safe guards. That includes white space and control characters.
+    #[arg(short = 'H', long)]
+    header: Option<Vec<String>>,
+
+    /// JSON formatted data to send in the request body
+    #[arg(short, long)]
+    data: Option<Vec<String>>,
 }
 
 fn main() -> Result<()> {
@@ -72,16 +49,35 @@ fn main() -> Result<()> {
 
     let url = Url::parse(&args.url).context(format!("Error parsing url `{}`.", args.url))?;
 
-    // dbg!(&url);
+    let method = {
+        if let Some(ref request_method) = args.request {
+            Method::parse(&request_method)
+        } else {
+            Method::GET
+        }
+    };
+
+    let mut request = HttpRequest::new(method, &url)?;
     
-    let request = HttpRequest::new(Method::GET, &url)?;
+    if let Some(ref headers) = args.header {
+        for header_string in headers {
+            request.parse_header(&header_string);
+        }
+    }
+
+    if let Some(ref data) = args.data {
+        for data_string in data {
+            request.add_data(&data_string);
+        }
+    }
+
     let mut response_string = String::new();
 
     if args.verbose {
-        println!("connecting to {}", request.host);
+        println!("connecting to {}", request.host());
     }
 
-    let mut stream = TcpStream::connect(format!("{}:80", request.host))?;
+    let mut stream = TcpStream::connect(format!("{}:80", request.host()))?;
     // let mut stream = TcpStream::connect("127.0.0.1:1234")?;
 
     if args.verbose {
