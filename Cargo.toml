@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-   "bin/cc-curl"
+   "bin/cc-curl",
+   "bin/cc-jq",
 ]
