@@ -124,3 +124,4 @@ Sending request:
 * Add support for HEAD and PATCH
 * Add HTTPS support
 * Support url-encoded data in `-d` option
+* Follow redirects
