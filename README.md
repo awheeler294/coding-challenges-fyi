@@ -3,3 +3,5 @@ This repo utilizes Cargo's workspace feature; each challenge is in its own works
 
 #### Projects
 * [curl](bin/cc-curl)
+* [jq](bin/cc-jq)
+* [JSON Parser](bin/cc-json)

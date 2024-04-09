@@ -8,6 +8,8 @@ example:
 ```bash
 cargo run -- 
 ```
+### Status
+Read, validate, parse, and pretty-print piped in JSON. Query functionality under construction.
 
 ### Examples
 

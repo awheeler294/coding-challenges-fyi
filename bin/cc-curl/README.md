@@ -1,10 +1,10 @@
 # cc-curl
 
-Curl clone created for [codingchallenges.fyi](codingchallenges.fyi)'s curl [challenge](codingchallenges.fyi/challenges/challenge-curl).
+Curl clone created for [codingchallenges.fyi](codingchallenges.fyi)'s [curl challenge](codingchallenges.fyi/challenges/challenge-curl).
 Supports `GET`, `POST`, `PUT`, and `DELETE` over http. Can send arbitrairy http methods using the `-X` option. Supports `-d` and `-H` options for adding headers and data. `-v` for verbose output.
 
 ### Building
-cc-crul be built and run using [Cargo](https://github.com/rust-lang/cargo). To pass options to the program (not cargo), add a `--` after all of cargo's options.  
+cc-curl be built and run using [Cargo](https://github.com/rust-lang/cargo). To pass options to the program (not cargo), add a `--` after all of cargo's options.  
 example:
 ```bash
 cargo run -- -v https://github.com/rust-lang/cargo
